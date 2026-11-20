@@ -27,14 +27,51 @@ Text, Markdown, code, checklists, mind maps and links with rich previews, all in
 
 ## Quick start
 
-You need Docker with Compose.
+You need Docker with Compose. Use the prebuilt image, or build it yourself from the source.
+
+### Prebuilt image
+
+Ready-made images for `linux/amd64` and `linux/arm64` (e.g. Raspberry Pi 4/5) are on the GitHub Container Registry as `ghcr.io/j-loewen/magpie`. The `latest` tag is always the newest release.
 
 ```sh
-git clone https://github.com/j-loewen/notes.git magpie && cd magpie
+mkdir magpie && cd magpie
+curl -fsSL -o .env https://raw.githubusercontent.com/j-loewen/magpie/main/.env.example
+openssl rand -hex 32          # put the result into .env as ENCRYPTION_KEY
+```
+
+Create `docker-compose.yml` next to it:
+
+```yaml
+services:
+  magpie:
+    image: ghcr.io/j-loewen/magpie:latest
+    container_name: magpie
+    restart: unless-stopped
+    ports:
+      - "${MAGPIE_PORT:-8085}:3000"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./data:/data
+    env_file:
+      - .env
+```
+
+```sh
+docker compose up -d
+```
+
+To update later: `docker compose pull && docker compose up -d`.
+
+### From source
+
+```sh
+git clone https://github.com/j-loewen/magpie.git magpie && cd magpie
 cp .env.example .env
 openssl rand -hex 32          # put the result into .env as ENCRYPTION_KEY
 docker compose up -d --build
 ```
+
+### Then
 
 Open http://localhost:8085 and register. **The first account becomes the admin.**
 

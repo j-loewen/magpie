@@ -12,7 +12,7 @@ Magpie runs as a single Docker container. All data (the database and stored file
 1. **Get the code**
 
    ```sh
-   git clone https://github.com/j-loewen/notes.git magpie
+   git clone https://github.com/j-loewen/magpie.git magpie
    cd magpie
    ```
 
@@ -48,6 +48,52 @@ Magpie runs as a single Docker container. All data (the database and stored file
 
 7. If only people you invite should get in, set `ALLOW_REGISTRATION=false` in `.env` and run `docker compose up -d` again. As admin you then create accounts under **Users** in the user menu.
 
+## Using the prebuilt image
+
+Every [release](https://github.com/j-loewen/magpie/releases) is also published as a ready-made image for `linux/amd64` and `linux/arm64` (e.g. Raspberry Pi 4/5): `ghcr.io/j-loewen/magpie`. You then need neither the source code nor a build, only two files.
+
+1. **Get the configuration** instead of cloning the code:
+
+   ```sh
+   mkdir magpie && cd magpie
+   curl -fsSL -o .env https://raw.githubusercontent.com/j-loewen/magpie/main/.env.example
+   chmod 600 .env
+   ```
+
+2. **Create `docker-compose.yml`** in the same folder:
+
+   ```yaml
+   services:
+     magpie:
+       image: ghcr.io/j-loewen/magpie:latest
+       container_name: magpie
+       restart: unless-stopped
+       ports:
+         - "${MAGPIE_PORT:-8085}:3000"
+       volumes:
+         - /etc/localtime:/etc/localtime:ro
+         - ./data:/data
+       env_file:
+         - .env
+   ```
+
+   (If you already cloned the repository, you can instead edit its `docker-compose.yml`: remove the `build: .` line and set `image: ghcr.io/j-loewen/magpie:latest`.)
+
+3. Continue with steps 3 and 4 above (encryption key and settings), then start it with `docker compose up -d` (no `--build`).
+
+### Image tags
+
+| Tag | What you get |
+|---|---|
+| `latest` | The newest release. Recommended. |
+| `0.1` | The newest `0.1.x` release: bug fixes, but no jump to `0.2`. |
+| `0.1.0` | Exactly this release; never changes. |
+| `dev` | The latest state of the `main` branch, built on every change. **For testing only**, see below. |
+| `sha-<commit>` | One particular `dev` build. Only the 10 most recent are kept. |
+
+> [!WARNING]
+> **Don't run `dev` with data you care about.** Database changes are applied on start-up and only go forward: once a `dev` build has changed the database, a release (`latest`) may no longer be able to open it. Use `dev` for a separate test installation with its own `data` folder, never switch an installation from `dev` back to `latest`, and make a [backup](backups.md) before trying it.
+
 ## Where the data is
 
 `docker-compose.yml` mounts `./data` (next to the compose file) into the container:
@@ -74,6 +120,13 @@ A plain `docker compose restart` does not re-read `.env`.
 ```sh
 git pull
 docker compose up -d --build
+```
+
+With the [prebuilt image](#using-the-prebuilt-image):
+
+```sh
+docker compose pull
+docker compose up -d
 ```
 
 Database changes are applied automatically when the new version starts. Make a [backup](backups.md) first.

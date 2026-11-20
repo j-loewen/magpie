@@ -4,7 +4,10 @@ FROM node:24-alpine AS base
 WORKDIR /app
 
 # ---- Build: install workspace deps, build the SPA and bundle the server ---------------
-FROM base AS build
+# Runs on the build machine's own platform even for multi-arch images: its output (JS bundle,
+# web assets) is platform-independent, so only the runtime-deps stage needs the target platform.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
+WORKDIR /app
 # Manifests first, so the dependency layer stays cached until a package.json changes.
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/
