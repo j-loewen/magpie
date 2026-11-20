@@ -1,0 +1,71 @@
+.node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Mantine indents nested levels through --label-offset; keep it when setting our own padding. */
+  padding: 3px 4px 3px calc(var(--label-offset, 0px) + 2px);
+  border-radius: var(--mantine-radius-sm);
+  cursor: pointer;
+  user-select: none;
+  min-height: 32px;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.node:hover {
+  /* dark-6 is the sidebar's own colour; the hover shade stands out from it. */
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+}
+
+.active {
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  font-weight: 500;
+}
+
+.active:hover {
+  background: var(--mantine-primary-color-light-hover);
+}
+
+/* Highlight while a note is dragged over a folder. */
+.dropTarget {
+  outline: 2px dashed var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+  min-width: 18px;
+  text-align: right;
+}
+
+.actions {
+  opacity: 0;
+}
+
+.node:hover .actions,
+.actions[data-expanded] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}
+
+.chevron {
+  transition: transform 120ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}

@@ -1,0 +1,23 @@
+{
+  "name": "notes",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev -w @notes/server",
+    "dev:web": "npm run dev -w @notes/web",
+    "build": "npm run build -w @notes/web && npm run build -w @notes/server",
+    "test": "npm run test -w @notes/server",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Magpie: your self-hosted notes and links" />
+    <!-- Colour of the browser/app title bar; kept in sync with the app's theme at runtime. -->
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS / iPadOS "Add to Home Screen" -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Magpie" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Magpie</title>
+    <!-- Applies the saved color scheme before React loads (external file: CSP forbids inline scripts). -->
+    <script src="/color-scheme.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

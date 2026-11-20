@@ -1,0 +1,14 @@
+services:
+  magpie:
+    build: .
+    image: magpie:latest
+    container_name: magpie
+    restart: unless-stopped
+    ports:
+      - 8085:3000
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./data:/data
+    # All settings are in .env next to this file (start from .env.example; see the README).
+    env_file:
+      - .env

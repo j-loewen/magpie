@@ -1,0 +1,77 @@
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: var(--mantine-radius-sm);
+  position: relative;
+}
+
+.row:hover,
+.row:focus-within {
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+.handle,
+.remove {
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.row:hover .handle,
+.row:hover .remove,
+.row:focus-within .remove {
+  opacity: 1;
+}
+
+/* Touch screens have no hover: always show the controls. */
+@media (hover: none) {
+  .handle,
+  .remove {
+    opacity: 0.6;
+  }
+}
+
+.handle {
+  cursor: grab;
+  touch-action: none;
+  color: var(--mantine-color-dimmed);
+  display: flex;
+  align-items: center;
+  height: 26px;
+}
+
+.dragging {
+  background: var(--mantine-color-body);
+  box-shadow: var(--mantine-shadow-md);
+  z-index: 2;
+  cursor: grabbing;
+}
+
+.dropBefore::before,
+.dropAfter::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--mantine-primary-color-filled);
+}
+
+.dropBefore::before {
+  top: -1px;
+}
+
+.dropAfter::after {
+  bottom: -1px;
+}
+
+.checkbox {
+  padding-top: 4px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+}
+

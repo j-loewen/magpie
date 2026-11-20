@@ -1,0 +1,104 @@
+/* App-wide styles on top of Mantine's (colours: see the theme in main.tsx). */
+
+/* Note cards open something on click: they light up under the pointer. */
+.note-card {
+  transition: background-color 120ms ease;
+}
+
+.note-card:hover {
+  background-color: var(--notes-card-hover);
+}
+
+/*
+ * Status bar along the bottom of the app, like VS Code's: small, flat items that light up under
+ * the pointer. Pages fill it (see StatusBar.tsx); items spread to both ends.
+ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  height: 100%;
+  padding: 0 6px;
+  overflow: hidden;
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--mantine-radius-sm);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--mantine-color-dimmed);
+}
+
+button.status-item:hover,
+.status-item[aria-expanded='true'] {
+  color: var(--mantine-color-text);
+  background-color: var(--mantine-color-default-hover);
+}
+
+.status-item[data-active] {
+  color: var(--mantine-primary-color-filled);
+}
+
+/*
+ * One note in a folder's list (see NoteSlot). The card fills it, so cards in a grid row keep one
+ * height. While notes are dragged into a custom order, a line shows where the note will go:
+ * in the gap left/right of a card (data-axis x) or on the line above/below a row (y).
+ */
+.note-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-slot > * {
+  flex: 1;
+}
+
+.note-slot[data-dragging] {
+  opacity: 0.4;
+}
+
+.note-slot[data-drop]::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 2px;
+  background: var(--mantine-primary-color-filled);
+}
+
+.note-slot[data-axis='x'][data-drop]::after {
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+/* Centred in the gap between cards (Mantine's sm spacing). */
+.note-slot[data-axis='x'][data-drop='before']::after {
+  left: calc(var(--mantine-spacing-sm) / -2 - 1.5px);
+}
+
+.note-slot[data-axis='x'][data-drop='after']::after {
+  right: calc(var(--mantine-spacing-sm) / -2 - 1.5px);
+}
+
+.note-slot[data-axis='y'][data-drop]::after {
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.note-slot[data-axis='y'][data-drop='before']::after {
+  top: -1.5px;
+}
+
+.note-slot[data-axis='y'][data-drop='after']::after {
+  bottom: -1.5px;
+}

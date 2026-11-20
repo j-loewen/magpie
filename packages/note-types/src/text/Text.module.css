@@ -1,0 +1,34 @@
+/* The editor sits in the note dialog like the other editors: no frame, the dialog's own padding. */
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.toolbar {
+  padding: 0 0 var(--mantine-spacing-xs);
+  background: var(--mantine-color-body);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: transparent;
+  font-size: var(--mantine-font-size-md);
+  line-height: 1.65;
+}
+
+.content :global(.ProseMirror) {
+  min-height: 100%;
+  padding: var(--mantine-spacing-sm) 0;
+}
+
+/* View mode: no toolbar above, so no gap at the top either. */
+.root[data-readonly] .content :global(.ProseMirror) {
+  padding-top: 0;
+}
