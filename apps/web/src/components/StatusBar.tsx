@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /** Height of the status bar along the bottom of the app (like VS Code's), in px. It is always shown. */
-export const STATUS_BAR_HEIGHT = 28;
+export const STATUS_BAR_HEIGHT = 34;
 
 const StatusBarContext = createContext<HTMLElement | null>(null);
 export const StatusBarProvider = StatusBarContext.Provider;

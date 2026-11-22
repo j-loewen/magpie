@@ -33,10 +33,26 @@ const theme = createTheme({
 /** The app's own colours (header and sidebar, card hover), per colour scheme. */
 const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {},
-  // Header and sidebar: in dark mode a step lighter than the page; in light mode the page colour.
+  // App frame (header, sidebar, status bar) and note cards share one colour: a step lighter than
+  // the page in dark mode, a step darker (light grey on the white page) in light mode.
+  // Hover: a shade further from the page; --notes-chrome-hover is for items in the frame
+  // (sidebar links, folder tree, status bar).
+  // Light-mode values are plain hex: --notes-chrome also becomes the browser's theme-color.
   // The note popup has the page's colour in dark mode; a border sets it apart.
-  light: { '--notes-chrome': 'var(--mantine-color-body)', '--notes-card-hover': 'var(--mantine-color-white)', '--notes-popup-border': 'transparent' },
-  dark: { '--notes-chrome': 'var(--mantine-color-dark-6)', '--notes-card-hover': 'var(--mantine-color-dark-5)', '--notes-popup-border': 'var(--mantine-color-dark-4)' },
+  light: {
+    '--notes-chrome': '#f5f5f5',
+    '--notes-chrome-hover': '#ebebeb',
+    '--notes-card': '#f5f5f5',
+    '--notes-card-hover': '#ebebeb',
+    '--notes-popup-border': 'transparent',
+  },
+  dark: {
+    '--notes-chrome': 'var(--mantine-color-dark-6)',
+    '--notes-chrome-hover': 'var(--mantine-color-dark-5)',
+    '--notes-card': 'var(--mantine-color-dark-6)',
+    '--notes-card-hover': 'color-mix(in srgb, var(--mantine-color-dark-6), white 6%)',
+    '--notes-popup-border': 'var(--mantine-color-dark-4)',
+  },
 });
 
 const queryClient = new QueryClient({

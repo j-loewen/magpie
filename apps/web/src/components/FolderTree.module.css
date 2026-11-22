@@ -12,8 +12,8 @@
 }
 
 .node:hover {
-  /* dark-6 is the sidebar's own colour; the hover shade stands out from it. */
-  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  /* The hover shade stands out from the sidebar's own colour (main.tsx). */
+  background: var(--notes-chrome-hover);
 }
 
 .active {

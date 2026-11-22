@@ -90,7 +90,7 @@ function LeaveMenu({ item }: { item: SharedItemDto }) {
   return (
     <Menu position="bottom-end" withinPortal>
       <Menu.Target>
-        <ActionIcon variant="subtle" color="gray" size="sm" mt={4} aria-label="Shared item actions" onClick={(e) => e.stopPropagation()}>
+        <ActionIcon variant="subtle" color="gray" size="md" mt={4} aria-label="Shared item actions" onClick={(e) => e.stopPropagation()}>
           <IconDots size={16} />
         </ActionIcon>
       </Menu.Target>

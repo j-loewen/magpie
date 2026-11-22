@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate, Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { ActionIcon, AppShell, Avatar, Burger, Button, Center, Divider, Group, Kbd, Loader, Menu, NavLink, ScrollArea, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure, useHotkeys, useOs } from '@mantine/hooks';
-import { IconChevronDown, IconCloudOff, IconLogout, IconSearch, IconSettings, IconTrash, IconUsers, IconUsersGroup } from '@tabler/icons-react';
+import { IconBrandGithub, IconChevronDown, IconCloudOff, IconLogout, IconSearch, IconSettings, IconTrash, IconUsers, IconUsersGroup } from '@tabler/icons-react';
 import { useLogout, useMe } from '../auth';
 import { useLiveUpdates, type LiveStatus } from '../live';
 import { ActionsProvider } from './Actions';
@@ -14,6 +14,9 @@ import { InstallMenuItem } from './InstallApp';
 import { Logo } from './Logo';
 import { STATUS_BAR_HEIGHT, StatusBarProvider, useStatusBarHost } from './StatusBar';
 
+/** The project's source, issues and releases. */
+const GITHUB_URL = 'https://github.com/j-loewen/magpie';
+
 export function AppLayout() {
   const { data: me, isPending, isError, refetch, isFetching } = useMe();
   const logout = useLogout();
@@ -22,6 +25,10 @@ export function AppLayout() {
   const pathname = useRouterState({ select: (st) => st.location.pathname });
   const live = useLiveUpdates(Boolean(me));
   const statusBar = useStatusBarHost();
+  // Pages scroll inside the content panel, not the window: a new page starts at the top.
+  // (Search changes, like opening a note dialog, keep the position.)
+  const content = useRef<HTMLDivElement>(null);
+  useEffect(() => content.current?.scrollTo(0, 0), [pathname]);
 
   if (isPending) return <Center mih="100dvh"><Loader /></Center>;
   // Network error (offline, server down): not a reason to send the user to the sign-in page.
@@ -52,12 +59,11 @@ export function AppLayout() {
       navbar={{ width: 280, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       // Status bar across the bottom, always there; pages fill it with what they have.
       footer={{ height: STATUS_BAR_HEIGHT }}
-      padding="md"
-      styles={{
-        header: { backgroundColor: 'var(--notes-chrome)' },
-        navbar: { backgroundColor: 'var(--notes-chrome)' },
-        footer: { backgroundColor: 'var(--notes-chrome)' },
-      }}
+      // Like VS Code: no lines between header, sidebar and status bar; the sidebar and the page sit
+      // in rounded panels on the app's frame colour (see .app-* in styles.css).
+      withBorder={false}
+      padding={0}
+      classNames={{ root: 'app-frame', header: 'app-chrome', footer: 'app-chrome', navbar: 'app-navbar', main: 'app-main' }}
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
@@ -95,6 +101,15 @@ export function AppLayout() {
                   </Menu.Item>
                 )}
                 <InstallMenuItem />
+                <Menu.Item
+                  component="a"
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  leftSection={<IconBrandGithub size={16} />}
+                >
+                  Magpie on GitHub
+                </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
                   color="red"
@@ -109,7 +124,8 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="xs">
+      <AppShell.Navbar>
+        <div className="app-panel app-sidebar">
         <AppShell.Section mb="xs">
           <SidebarSearch onSearch={close} />
         </AppShell.Section>
@@ -135,10 +151,13 @@ export function AppLayout() {
             active={pathname === '/trash'}
           />
         </AppShell.Section>
+        </div>
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <Outlet />
+        <div ref={content} className="app-panel app-content">
+          <Outlet />
+        </div>
       </AppShell.Main>
 
       <AppShell.Footer>

@@ -159,3 +159,7 @@ Under **Settings** in the user menu:
 - **Sign-in methods:** connect GitHub or your organisation's sign-in (when your admin turned them on)
 - **Password**
 - **Storage** (admins only): see [Administration](administration.md#storage)
+
+## Source code and issues
+
+**Magpie on GitHub** in the user menu opens the project's repository, where you can report problems, suggest features and see what changed in each release.

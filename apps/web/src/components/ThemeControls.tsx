@@ -20,7 +20,7 @@ export function ThemeSync() {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     // --notes-chrome: the header's colour (see main.tsx), resolved to a colour value.
     const color = getComputedStyle(document.documentElement).getPropertyValue('--notes-chrome').trim();
-    if (meta) meta.content = color || (computed === 'dark' ? '#191a1b' : '#ffffff');
+    if (meta) meta.content = color || (computed === 'dark' ? '#191a1b' : '#f5f5f5');
   }, [computed]);
   return null;
 }

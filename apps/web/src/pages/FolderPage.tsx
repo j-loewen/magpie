@@ -579,7 +579,7 @@ function NoteMenu({ note }: { note: NoteSummaryDto }) {
   return (
     <Menu position="bottom-end" withinPortal>
       <Menu.Target>
-        <ActionIcon variant="subtle" color="gray" size="sm" aria-label="Note actions" onClick={(e) => e.stopPropagation()}>
+        <ActionIcon variant="subtle" color="gray" size="md" aria-label="Note actions" onClick={(e) => e.stopPropagation()}>
           <IconDots size={16} />
         </ActionIcon>
       </Menu.Target>
