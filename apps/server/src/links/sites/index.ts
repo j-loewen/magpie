@@ -5,8 +5,9 @@ import { enrichArticle } from './article';
 import { appleMusicRule, applePodcastsRule } from './apple';
 import { githubRule } from './github';
 import { goodreadsRule } from './goodreads';
-import type { SiteRule } from './helpers';
+import { isObj, type SiteRule } from './helpers';
 import { imdbRule } from './imdb';
+import { liquormartsRule } from './liquormarts';
 import { spotifyRule } from './spotify';
 import { walmartRule } from './walmart';
 import { wikipediaRule } from './wikipedia';
@@ -24,10 +25,11 @@ import { youtubeRule } from './youtube';
 
 export { parsePrice } from './amazon';
 export { githubApiUrl, withGitHubApi } from './github';
+export { titleFromUrl } from './helpers';
 export { redditOembedUrl, redditPageFromOembed, redditPostUrl } from './reddit';
 export { stackExchangeApiUrl, stackExchangePage, stackExchangeQuestion } from './stackexchange';
 
-const RULES: SiteRule[] = [amazonRule, aliexpressRule, imdbRule, goodreadsRule, youtubeRule, spotifyRule, appleMusicRule, applePodcastsRule, wikipediaRule, githubRule, walmartRule];
+const RULES: SiteRule[] = [amazonRule, aliexpressRule, imdbRule, goodreadsRule, youtubeRule, spotifyRule, appleMusicRule, applePodcastsRule, wikipediaRule, githubRule, walmartRule, liquormartsRule];
 
 /** Improve generic metadata with what we know about specific sites. */
 export function applySiteRules(html: string, pageUrl: string, md: PageMetadata): PageMetadata {
@@ -44,11 +46,11 @@ export function applySiteRules(html: string, pageUrl: string, md: PageMetadata):
 
 /**
  * Shop pages that build their product data with JavaScript: the page says it is a product
- * (og:type) but its HTML carries no schema.org Product. A real browser (FlareSolverr, when
- * configured) sees the full page, including price and rating.
+ * (og:type) but yields no schema.org Product, neither as JSON-LD nor through a site rule that
+ * reads it from the markup (e.g. Liquor Marts). A real browser (FlareSolverr, when configured)
+ * sees the full page, including price and rating.
  */
-export function needsBrowser(html: string): boolean {
-  const ogType = /<meta[^>]+property\s*=\s*["']og:type["'][^>]*>/i.exec(html)?.[0];
-  if (!ogType || !/\scontent\s*=\s*["'](og:)?product\b/i.test(ogType)) return false;
-  return !/["']@type["']\s*:\s*\[?\s*["'](Product|ProductGroup)["']/.test(html);
+export function needsBrowser(md: PageMetadata): boolean {
+  if (!/^(og:)?product\b/i.test(md.ogType ?? '')) return false;
+  return !md.jsonLd.some((o) => isObj(o) && [o['@type']].flat().some((t) => t === 'Product' || t === 'ProductGroup'));
 }

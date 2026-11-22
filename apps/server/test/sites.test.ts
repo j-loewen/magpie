@@ -11,8 +11,32 @@ import {
   redditPostUrl,
   stackExchangePage,
   stackExchangeQuestion,
+  titleFromUrl,
   withGitHubApi,
 } from '../src/links/sites';
+
+describe('titleFromUrl (name for pages that block previews)', () => {
+  it('reads the product or article name from the address', () => {
+    expect(titleFromUrl('https://www.walmart.ca/en/ip/WD-Red-Plus-WD80EFPX-Hard-drive-8-TB-internal-3-5-SATA-6Gb-s-5640-rpm-buffer-256-MB/30LWQC75P0D4')).toBe(
+      'WD Red Plus WD80EFPX Hard drive 8 TB internal 3 5 SATA 6Gb s 5640 rpm buffer 256 MB',
+    );
+    expect(titleFromUrl('https://www.bestbuy.ca/en-ca/product/ubiquiti-25-gbps-multi-mode-optical-module-silver-udm-se/19862978')).toBe(
+      'Ubiquiti 25 gbps multi mode optical module silver udm se',
+    );
+    expect(titleFromUrl('https://www.amazon.ca/UCTRONICS-Raspberry-Mounting-Thumbscrews-Removable/dp/B09QQ9TQWL?crid=2M62&sr=8-9')).toBe(
+      'UCTRONICS Raspberry Mounting Thumbscrews Removable',
+    );
+    expect(titleFromUrl('https://blog.test/2024/05/caf%C3%A9_au_lait_recipe.html')).toBe('Café au lait recipe');
+  });
+
+  it('gives up on addresses without a name', () => {
+    expect(titleFromUrl('https://www.amazon.ca/dp/B09QQ9TQWL')).toBeUndefined();
+    expect(titleFromUrl('https://www.bestbuy.ca/en-ca/product/19862978')).toBeUndefined();
+    expect(titleFromUrl('https://shop.test/item/46c93973-e628-11f1-9760-7d1fd7fb5f8f')).toBeUndefined();
+    expect(titleFromUrl('https://shop.test/')).toBeUndefined();
+    expect(titleFromUrl('not a url')).toBeUndefined();
+  });
+});
 
 /** The parts of an Amazon product page the site rule reads (Amazon has no JSON-LD or og: tags). */
 const AMAZON_PAGE = `<!doctype html><html><head>
@@ -160,13 +184,56 @@ describe('AliExpress pages', () => {
   });
 
   it('knows which pages need a browser to show their product data', () => {
-    expect(needsBrowser(ALI_PLAIN)).toBe(true);
-    expect(needsBrowser(ALI_RENDERED)).toBe(false);
-    expect(needsBrowser('<meta content="product" property="og:type">')).toBe(true);
-    expect(needsBrowser('<meta property="og:type" content="product.item">')).toBe(true);
-    expect(needsBrowser('<meta property="og:type" content="article">')).toBe(false);
-    expect(needsBrowser('<title>No og:type</title>')).toBe(false);
-    expect(needsBrowser('<meta property="og:type" content="product"><script type="application/ld+json">{"@type": ["Product"]}</script>')).toBe(false);
+    const needs = (html: string, url = 'https://shop.test/p/1') => needsBrowser(extractMetadata(html, url));
+    expect(needs(ALI_PLAIN, 'https://www.aliexpress.com/item/1.html')).toBe(true);
+    expect(needs(ALI_RENDERED, 'https://www.aliexpress.com/item/1.html')).toBe(false);
+    expect(needs('<meta content="product" property="og:type">')).toBe(true);
+    expect(needs('<meta property="og:type" content="product.item">')).toBe(true);
+    expect(needs('<meta property="og:type" content="article">')).toBe(false);
+    expect(needs('<title>No og:type</title>')).toBe(false);
+    expect(needs('<meta property="og:type" content="product"><script type="application/ld+json">{"@type": ["Product"]}</script>')).toBe(false);
+    // A site rule that reads the product from the markup makes the browser unnecessary.
+    expect(needs(LIQUORMARTS, LIQUORMARTS_URL)).toBe(false);
+  });
+});
+
+// Excerpt of a real product page (Drupal Commerce): no JSON-LD, the data is in the markup.
+const LIQUORMARTS_URL = 'https://www.liquormarts.ca/product/moosehead-lager/15-x-355-ml';
+const LIQUORMARTS = `<head><meta property="og:site_name" content="Manitoba Liquor Mart" />
+<meta property="og:type" content="product" /><meta property="og:title" content="MOOSEHEAD LAGER" />
+<link rel="icon" href="/themes/custom/mbll_lm/favicon.png" type="image/png" /></head>
+<body><h1><div class="field field--name-field-web-description field--type-string field--label-hidden field__item">MOOSEHEAD LAGER</div></h1>
+<div class="product_image"><div data-zooming-gallery class="blazy blazy--zooming field field--name-field-product-image-front field--type-image field--label-hidden field__item">
+<img alt="Moosehead Lager" decoding="async" class="media__element b-lazy zooming" loading="lazy" data-src="/sites/mbll-lm/files/styles/product/public/import/images/7246_d671.png?itok=OReoEJ-b" data-original="/sites/mbll-lm/files/import/images/7246_d671.png" src="data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E" width="496" height="350" /></div></div>
+<div class="col-md-8 product_basic_details"> <div> <p> <span>Item # 7246 </span> <span> | UPC 776029701876</span> <span> | 15 x 355 ml</span> </p> </div>
+<div class="product_price_marketing_program"> <div class="product_price"> $32.79 </div> </div>
+<div class="field field--name-field-tasting-notes field--type-string-long field--label-hidden field__item">Moosehead Breweries&#039;flagship brand is a golden lager that is light in body and highly refreshing.</div></div>
+<div class="product-specifications-content"> <span class="product_details_title">Category:</span><span class="product_details_detail">
+<div class="field field--name-field-category-type field--type-entity-reference field--label-hidden field__items"> <div class="field__item"><a href="/category-type/beer" hreflang="en">Beer</a> <span class="separator"> &gt; </span> <a href="/category-type/lager" hreflang="en">Lager</a> <span class="separator"> &gt; </span> <a href="/category-type/pale-0" hreflang="en">Pale</a> </div> </div></span></div></body>`;
+
+describe('Liquor Marts', () => {
+  it('reads name, size, image, price and tasting notes from the page markup', () => {
+    const md = extractMetadata(LIQUORMARTS, LIQUORMARTS_URL);
+    expect(md).toMatchObject({
+      title: 'Moosehead Lager (15 x 355 ml)',
+      description: "Moosehead Breweries'flagship brand is a golden lager that is light in body and highly refreshing.",
+      siteName: 'Manitoba Liquor Mart',
+      image: 'https://www.liquormarts.ca/sites/mbll-lm/files/import/images/7246_d671.png',
+    });
+    expect(md.jsonLd).toEqual([
+      {
+        '@type': 'Product',
+        name: 'Moosehead Lager',
+        image: 'https://www.liquormarts.ca/sites/mbll-lm/files/import/images/7246_d671.png',
+        sku: '7246',
+        gtin: '776029701876',
+        size: '15 x 355 ml',
+        category: 'Beer > Lager > Pale',
+        description: "Moosehead Breweries'flagship brand is a golden lager that is light in body and highly refreshing.",
+        offers: { '@type': 'Offer', price: 32.79, priceCurrency: 'CAD' },
+      },
+    ]);
+    expect(formatFacts(productFacts(md.jsonLd)!)).toMatch(/32\.79/);
   });
 });
 

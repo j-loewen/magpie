@@ -10,6 +10,36 @@ export interface SiteRule {
 export type Obj = Record<string, unknown>;
 export const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/**
+ * A name made from the words in a page's address ("/en/ip/WD-Red-Plus-Hard-drive/30LWQC75P0D4"
+ * → "WD Red Plus Hard drive"), for pages that refuse to be fetched. Shops and blogs put the
+ * product or article name in the path; IDs, locales ("en-ca") and short paths are skipped.
+ * Undefined if no part of the path reads like a name.
+ */
+export function titleFromUrl(input: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    return undefined;
+  }
+  // The name is usually the last such segment (often followed by an ID).
+  for (const raw of url.pathname.split('/').filter(Boolean).reverse()) {
+    let segment = raw;
+    try {
+      segment = decodeURIComponent(raw);
+    } catch {
+      // Keep the segment as it is.
+    }
+    segment = segment.replace(/\.(s?html?|php|aspx?|jsp)$/i, '');
+    const words = segment.split(/[-_+\s]+/).filter(Boolean);
+    if (words.length < 3 || words.filter((w) => /^\p{L}{2,}$/u.test(w)).length < 2) continue;
+    const name = words.join(' ').slice(0, 200).trim();
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  return undefined;
+}
+
 /** Plain text of a piece of markup (tags removed, entities decoded, whitespace collapsed). */
 export const text = (html: string) => decodeHTML(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 

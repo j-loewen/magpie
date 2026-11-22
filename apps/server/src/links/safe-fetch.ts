@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import net from 'node:net';
+import zlib from 'node:zlib';
 import { Agent, request, type Dispatcher } from 'undici';
 
 /**
@@ -8,6 +9,8 @@ import { Agent, request, type Dispatcher } from 'undici';
  * - every connection (including after redirects) is checked at DNS-lookup time, so a hostname
  *   cannot resolve to a private/loopback/link-local address (also defeats DNS rebinding)
  * - redirect, size and time limits
+ * Compressed responses are decoded (some sites, e.g. Amazon, compress even when not asked to).
+ * The size limit applies to the decoded body too, so a small "zip bomb" cannot blow it up.
  */
 
 const blocked = new net.BlockList();
@@ -58,6 +61,11 @@ export class FetchError extends Error {
     message: string,
     /** The site turned the request away (dropped the connection); worth trying FlareSolverr. */
     readonly refused = false,
+    /**
+     * The site is there but would not show the page (bot protection, dropped connection, no
+     * answer in time): a preview can still be pieced together from the address.
+     */
+    readonly blocked = refused,
   ) {
     super(message);
   }
@@ -157,6 +165,7 @@ export async function safeFetch(input: string, opts: SafeFetchOptions): Promise<
         headers: {
           'user-agent': USER_AGENT,
           accept: opts.accept ?? '*/*',
+          'accept-encoding': 'gzip, deflate, br',
           'accept-language': 'en;q=0.9, *;q=0.5',
         },
       });
@@ -173,32 +182,65 @@ export async function safeFetch(input: string, opts: SafeFetchOptions): Promise<
       continue;
     }
 
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let truncated = false;
+    let raw: Limited;
     try {
-      for await (const chunk of res.body) {
-        const buf = chunk as Buffer;
-        if (size + buf.length > opts.maxBytes) {
-          chunks.push(buf.subarray(0, opts.maxBytes - size));
-          truncated = true;
-          break; // leaving the loop destroys the stream
-        }
-        chunks.push(buf);
-        size += buf.length;
-      }
+      raw = await readLimited(res.body, opts.maxBytes);
     } catch (err) {
       throw toFetchError(err);
     }
+    const { body, truncated } = await decode(raw, String(res.headers['content-encoding'] ?? ''), opts.maxBytes);
     return {
       finalUrl: url.toString(),
       status: res.statusCode,
       contentType: String(res.headers['content-type'] ?? '').toLowerCase(),
-      body: Buffer.concat(chunks),
+      body,
       truncated,
     };
   }
   throw new FetchError('Too many redirects');
+}
+
+type Limited = { body: Buffer; truncated: boolean };
+
+/** Reads a stream up to `maxBytes`. Leaving the loop early destroys the stream. */
+async function readLimited(stream: AsyncIterable<unknown>, maxBytes: number): Promise<Limited> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    const buf = chunk as Buffer;
+    if (size + buf.length > maxBytes) {
+      chunks.push(buf.subarray(0, maxBytes - size));
+      return { body: Buffer.concat(chunks), truncated: true };
+    }
+    chunks.push(buf);
+    size += buf.length;
+  }
+  return { body: Buffer.concat(chunks), truncated: false };
+}
+
+/**
+ * Decodes a compressed body (Content-Encoding gzip, deflate or br), keeping at most `maxBytes`
+ * of the result; other bodies are returned as they are. A body cut off at the size limit decodes
+ * as far as it goes: the flush options keep zlib from failing on the missing end.
+ */
+async function decode(raw: Limited, contentEncoding: string, maxBytes: number): Promise<Limited> {
+  const encoding = contentEncoding.trim().toLowerCase();
+  if (raw.body.length === 0) return raw;
+  const flush = { finishFlush: zlib.constants.Z_SYNC_FLUSH };
+  let decoder: zlib.Gunzip | zlib.Inflate | zlib.InflateRaw | zlib.BrotliDecompress;
+  if (encoding === 'gzip' || encoding === 'x-gzip') decoder = zlib.createGunzip(flush);
+  else if (encoding === 'br') decoder = zlib.createBrotliDecompress({ finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH });
+  // "deflate" should be zlib-wrapped (first byte 0x78), but some servers send raw deflate.
+  else if (encoding === 'deflate') decoder = raw.body[0] === 0x78 ? zlib.createInflate(flush) : zlib.createInflateRaw(flush);
+  else return raw;
+
+  decoder.end(raw.body);
+  try {
+    const decoded = await readLimited(decoder, maxBytes);
+    return { body: decoded.body, truncated: decoded.truncated || raw.truncated };
+  } catch {
+    throw new FetchError('Could not load the page: invalid compressed data');
+  }
 }
 
 function toFetchError(err: unknown): FetchError {
@@ -206,7 +248,7 @@ function toFetchError(err: unknown): FetchError {
   const e = err as { name?: string; code?: string; cause?: unknown; message?: string };
   if (e.cause instanceof FetchError) return e.cause;
   if (e.name === 'TimeoutError' || e.name === 'AbortError' || e.code === 'UND_ERR_HEADERS_TIMEOUT') {
-    return new FetchError('The site took too long to respond');
+    return new FetchError('The site took too long to respond', false, true);
   }
   if (e.code === 'ENOTFOUND' || e.code === 'EAI_AGAIN') return new FetchError('The site could not be found');
   if (e.code === 'ECONNREFUSED') return new FetchError('The site refused the connection');

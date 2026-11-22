@@ -1,5 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import zlib from 'node:zlib';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
@@ -90,9 +91,16 @@ describe('SSRF protection', () => {
 let site: http.Server;
 let base: string;
 let hits: string[] = [];
+/** /flaky answers like a site whose bot protection kicks in later (HTTP 403) while this is true. */
+let flakyBlocked = false;
+const FLAKY = '<title>Flaky page</title><meta name="description" content="Was there"><meta property="og:image" content="/img.png">';
+/** Blocked shop page whose address names the product. */
+const SHOP_PATH = '/shop/WD-Red-Plus-Hard-drive/30LWQC75P0D4';
 
 beforeAll(async () => {
   const png = await sharp({ create: { width: 1600, height: 900, channels: 3, background: '#e8590c' } }).png().toBuffer();
+  // About 20 KB that inflate to more than 20 MB.
+  const bomb = zlib.gzipSync(`<title>Bomb</title>${'x'.repeat(20 * 1024 * 1024)}`);
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><script>alert(1)</script><rect width="32" height="32" fill="teal"/></svg>';
   site = http.createServer((req, res) => {
     hits.push(req.url ?? '');
@@ -113,7 +121,24 @@ beforeAll(async () => {
       case '/icon.svg':
         return send(200, 'image/svg+xml', svg);
       case '/huge':
-        return send(200, 'text/html', `<title>Huge</title>${'x'.repeat(3 * 1024 * 1024)}`);
+        return send(200, 'text/html', `<title>Huge</title>${'x'.repeat(5 * 1024 * 1024)}`);
+      // Compressed whatever the request accepts, as Amazon does.
+      case '/gzip':
+        return send(200, 'text/html', zlib.gzipSync('<title>Gzipped page</title>'), { 'content-encoding': 'gzip' });
+      case '/br':
+        return send(200, 'text/html', zlib.brotliCompressSync('<title>Brotli page</title>'), { 'content-encoding': 'br' });
+      case '/deflate':
+        return send(200, 'text/html', zlib.deflateSync('<title>Deflated page</title>'), { 'content-encoding': 'deflate' });
+      case '/deflate-raw':
+        return send(200, 'text/html', zlib.deflateRawSync('<title>Raw deflate page</title>'), { 'content-encoding': 'deflate' });
+      case '/gzip-bomb':
+        return send(200, 'text/html', bomb, { 'content-encoding': 'gzip' });
+      case '/gzip-bad':
+        return send(200, 'text/html', 'this is not gzip', { 'content-encoding': 'gzip' });
+      case '/flaky':
+        return flakyBlocked ? send(403, 'text/html', '<title>Access Denied</title>') : send(200, 'text/html', FLAKY);
+      case SHOP_PATH:
+        return send(403, 'text/html', '<title>Access Denied</title>');
       case '/blocked':
         return send(403, 'text/html', '<title>Access Denied</title>');
       case '/captcha':
@@ -260,10 +285,69 @@ describe('link previews', () => {
     expect(hits.filter((h) => h === '/other').length).toBe(before + 1);
   });
 
-  it('reads at most 2 MB of a page and still extracts what it got', async () => {
+  it('reads at most 4 MB of a page and still extracts what it got', async () => {
     const alice = await setup();
     const note = await createLink(alice, `${base}/huge`);
     expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'ok', title: 'Huge' });
+  });
+
+  it('decodes compressed pages, also when the site compresses without being asked', async () => {
+    const alice = await setup();
+    for (const [path, title] of [
+      ['/gzip', 'Gzipped page'],
+      ['/br', 'Brotli page'],
+      ['/deflate', 'Deflated page'],
+      ['/deflate-raw', 'Raw deflate page'],
+    ]) {
+      const note = await createLink(alice, `${base}${path}`);
+      expect((await settled(alice, note.id)).meta, path).toMatchObject({ status: 'ok', title });
+    }
+  });
+
+  it('applies the size limit to the decompressed page, and reports broken compression', async () => {
+    const page = await safeFetch(`${base}/gzip-bomb`, { allowPrivate: true, maxBytes: 1024 * 1024 });
+    expect(page).toMatchObject({ status: 200, truncated: true });
+    expect(page.body.length).toBe(1024 * 1024);
+
+    const alice = await setup();
+    let note = await createLink(alice, `${base}/gzip-bomb`);
+    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'ok', title: 'Bomb' });
+    note = await createLink(alice, `${base}/gzip-bad`);
+    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'error', error: 'Could not load the page: invalid compressed data' });
+  });
+
+  it('keeps the preview when a refresh fails', async () => {
+    const alice = await setup();
+    flakyBlocked = false;
+    const note = await createLink(alice, `${base}/flaky`);
+    const before = (await settled(alice, note.id)).meta!;
+    expect(before).toMatchObject({ status: 'ok', title: 'Flaky page', description: 'Was there' });
+    expect(before.imageUrl).toBeDefined();
+    expect(before.error).toBeUndefined();
+
+    flakyBlocked = true;
+    await alice.post(`/api/notes/${note.id}/refresh-meta`);
+    const after = (await settled(alice, note.id)).meta!;
+    expect(after).toEqual({ ...before, error: 'The site answered with HTTP 403' });
+    // The image file was kept, not deleted.
+    expect((await alice.get(after.imageUrl!)).statusCode).toBe(200);
+
+    flakyBlocked = false;
+    await alice.post(`/api/notes/${note.id}/refresh-meta`);
+    expect((await settled(alice, note.id)).meta?.error).toBeUndefined();
+  });
+
+  it('builds a partial preview from the address when the site blocks the page', async () => {
+    const alice = await setup();
+    const url = `${base}${SHOP_PATH}`;
+    expect((await alice.post('/api/links/title', { url })).json()).toEqual({ title: 'WD Red Plus Hard drive' });
+    const note = await createLink(alice, url);
+    const { meta } = await settled(alice, note.id);
+    expect(meta).toMatchObject({ status: 'ok', title: 'WD Red Plus Hard drive', siteName: '127.0.0.1', error: 'The site answered with HTTP 403' });
+    expect(meta?.description).toBeUndefined();
+    // Not for pages that are simply missing.
+    const missing = await createLink(alice, `${base}/missing-page-name`);
+    expect((await settled(alice, missing.id)).meta).toMatchObject({ status: 'error', error: 'The site answered with HTTP 404' });
   });
 
   it('stops redirect loops', async () => {
@@ -365,15 +449,18 @@ describe('FlareSolverr fallback', () => {
     expect(solverCalls).toHaveLength(0);
     await app.close();
 
+    // Without it, a blocked page gets a partial preview (no name in this address).
     alice = await setup();
     note = await createLink(alice, `${base}/blocked`);
-    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'error', error: 'The site answered with HTTP 403' });
+    const { meta } = await settled(alice, note.id);
+    expect(meta).toMatchObject({ status: 'ok', siteName: '127.0.0.1', error: 'The site answered with HTTP 403' });
+    expect(meta?.title).toBeUndefined();
   });
 
   it('tries FlareSolverr when the site drops the connection', async () => {
     let alice = await setup();
     let note = await createLink(alice, `${base}/drop`);
-    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'error', error: 'The site closed the connection (it may block link previews)' });
+    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'ok', error: 'The site closed the connection (it may block link previews)' });
     await app.close();
 
     alice = await withSolver();
@@ -409,7 +496,7 @@ describe('FlareSolverr fallback', () => {
   it('treats captcha pages as blocked', async () => {
     let alice = await setup();
     let note = await createLink(alice, `${base}/captcha`);
-    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'error', error: 'The site showed a robot check instead of the page' });
+    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'ok', error: 'The site showed a robot check instead of the page' });
     await app.close();
 
     alice = await withSolver();
@@ -433,7 +520,7 @@ describe('FlareSolverr fallback', () => {
     solverMode = 'error';
     const alice = await withSolver();
     const note = await createLink(alice, `${base}/blocked`);
-    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'error', error: 'The site answered with HTTP 403' });
+    expect((await settled(alice, note.id)).meta).toMatchObject({ status: 'ok', error: 'The site answered with HTTP 403' });
     expect(solverCalls).toHaveLength(1);
   });
 

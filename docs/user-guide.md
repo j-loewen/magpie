@@ -66,7 +66,7 @@ For link notes, the server fetches the page's title, description, site name, pre
 - The fetched page text is searchable.
 - Pasted links are cleaned: tracking parameters (`utm_…`, `fbclid`, …) are removed and shop links are shortened (Amazon, eBay, AliExpress, Walmart). **Undo** keeps the original.
 - Many kinds of pages show extra details on the card and in the preview:
-  - **Shops:** price and rating
+  - **Shops:** price and rating, also from shops that only show them on the page itself (Amazon, Manitoba Liquor Marts)
   - **Recipes:** time, servings, rating
   - **Movies and shows** (IMDb, TMDB, …): year, runtime or seasons, age rating, genres, rating
   - **Books** (Goodreads, …): author, year, pages, genres, rating
@@ -79,9 +79,9 @@ For link notes, the server fetches the page's title, description, site name, pre
   - **Stack Overflow and Stack Exchange:** votes, answers (✓ when one was accepted), views, date
   - **Reddit posts:** title, author and subreddit
 - Captcha and "robot check" pages are recognised as blocked instead of being shown as the page.
-- **Refresh preview** in the note fetches everything again.
+- **Refresh preview** in the note fetches everything again. If that fails, the preview you had stays, with a note saying why it could not be updated.
 
-Some sites block automated requests. Your admin can route those through FlareSolverr (see [Configuration](configuration.md#link-previews)).
+Some sites block automated requests. Your admin can route those through FlareSolverr (see [Configuration](configuration.md#link-previews)), but some shops (Walmart and Best Buy, for example) block that too. When a site blocks the preview, the link still gets a partial one: a name taken from the web address (shops usually put the product name in it), the site's name and, if available, its icon. A note in the preview says that the page information may be incomplete.
 
 ## Search
 

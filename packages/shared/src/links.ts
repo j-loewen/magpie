@@ -2,7 +2,9 @@
 export interface LinkMetaDto {
   /**
    * pending: fetch queued or running · ok: fetched · error: fetch failed (see `error`)
-   * · disabled: link previews are turned off on this server
+   * · disabled: link previews are turned off on this server.
+   * `ok` with an `error`: what is shown is not from the latest fetch (a refresh failed, the
+   * earlier data was kept) or is partial (the site blocked the fetch; name from the address).
    */
   status: 'pending' | 'ok' | 'error' | 'disabled';
   /** URL the metadata was fetched for. */

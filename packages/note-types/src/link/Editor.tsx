@@ -246,6 +246,15 @@ function Preview({ meta, url, onRefresh }: { meta: ReturnType<typeof linkMeta>; 
               {meta.description}
             </Text>
           )}
+          {/* Data kept from an earlier fetch, or a partial preview of a page the site blocked. */}
+          {meta.status !== 'pending' && meta.error && (
+            <Group gap={6} wrap="nowrap" align="flex-start">
+              <IconAlertTriangle size={14} color="var(--mantine-color-yellow-filled)" style={{ flex: '0 0 auto', marginTop: 2 }} />
+              <Text size="xs" c="dimmed">
+                Page information may be incomplete: {meta.error}
+              </Text>
+            </Group>
+          )}
           <Group gap="xs" justify="space-between" wrap="nowrap" mt={2}>
             <Text size="xs" c="dimmed" truncate="end" style={{ flex: 1 }} title={shown}>
               {shown}

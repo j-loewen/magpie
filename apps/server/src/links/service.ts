@@ -21,11 +21,13 @@ import {
   stackExchangeApiUrl,
   stackExchangePage,
   stackExchangeQuestion,
+  titleFromUrl,
   withGitHubApi,
 } from './sites';
 
 const CONCURRENCY = 2;
-const HTML_MAX = 2 * 1024 * 1024;
+/** Shop pages are large: Amazon's run to about 2.5 MB. */
+const HTML_MAX = 4 * 1024 * 1024;
 const IMAGE_MAX = 8 * 1024 * 1024;
 const ICON_MAX = 256 * 1024;
 /** How long and how many fetched pages are kept for reuse (see fetchPageCached). */
@@ -159,7 +161,7 @@ export class LinkPreviews {
     }
     const refused = page
       ? looksBlocked(page.status, page.contentType.includes('html') ? page.body.toString('utf8', 0, 50_000) : undefined)
-      : error instanceof FetchError && (error.refused || error.message === 'The site took too long to respond');
+      : error instanceof FetchError && error.blocked;
     if (refused) {
       const solved = await this.viaBrowser(url, 'refused');
       if (solved) return solved;
@@ -187,7 +189,7 @@ export class LinkPreviews {
    */
   private async renderIfNeeded(url: string, page: SafeFetchResult): Promise<SafeFetchResult> {
     if (!this.flare || page.status >= 400 || !page.contentType.includes('html')) return page;
-    if (!needsBrowser(decodeHtml(page.body, page.contentType))) return page;
+    if (!needsBrowser(extractMetadata(decodeHtml(page.body, page.contentType), page.finalUrl))) return page;
     return (await this.viaBrowser(url, 'client-rendered')) ?? page;
   }
 
@@ -223,17 +225,21 @@ export class LinkPreviews {
     this.recent.delete(url);
   }
 
-  /** Title of the page, to name a new link note before it is saved. Undefined if unavailable. */
+  /**
+   * Title of the page, to name a new link note before it is saved; for sites that block the
+   * request, a name made from the address. Undefined if unavailable.
+   */
   async lookupTitle(url: string): Promise<string | undefined> {
     if (!this.config.linkPreviews) return undefined;
     try {
       const page = await this.fetchPageCached(url, { render: false });
-      if (page.status >= 400 || !page.contentType.includes('html')) return undefined;
-      if (looksBlocked(page.status, page.body.toString('utf8', 0, 50_000))) return undefined;
+      const html = page.contentType.includes('html') ? page.body.toString('utf8', 0, 50_000) : undefined;
+      if (looksBlocked(page.status, html)) return titleFromUrl(url);
+      if (page.status >= 400 || !html) return undefined;
       return extractMetadata(decodeHtml(page.body, page.contentType), page.finalUrl).title;
     } catch (err) {
       if (!(err instanceof FetchError)) this.log.warn({ err, url }, 'link title lookup failed');
-      return undefined;
+      return err instanceof FetchError && err.blocked ? titleFromUrl(url) : undefined;
     }
   }
 
@@ -341,6 +347,56 @@ export class LinkPreviews {
     }
   }
 
+  /**
+   * A partial preview for a page the site would not show: a name from the address, the host as
+   * site name and (if the site serves it) the favicon, with `error` saying why the rest is
+   * missing. False if the note changed or went away meanwhile (then nothing is written).
+   */
+  private async saveFromAddress(noteId: string, url: string, error: string): Promise<boolean> {
+    let icon: Awaited<ReturnType<typeof makeIcon>> = null;
+    try {
+      const res = await safeFetch(new URL('/favicon.ico', url).toString(), {
+        allowPrivate: this.config.linkPreviewAllowLan,
+        maxBytes: ICON_MAX,
+        accept: 'image/*',
+        timeoutMs: 5000,
+      });
+      if (res.status < 400 && !res.truncated && res.body.length > 0) icon = await makeIcon(res.body, res.contentType);
+    } catch {
+      // Blocked too, or no icon: the preview goes without.
+    }
+
+    if (this.closed) return false;
+    const current = this.row(noteId);
+    const note = this.db.select({ ownerId: notes.ownerId }).from(notes).where(eq(notes.id, noteId)).get();
+    if (!current || current.url !== url || !note) return false;
+    const favicon = icon
+      ? this.store.save({ ownerId: note.ownerId, noteId, kind: 'link-icon', mime: icon.mime, ext: icon.ext, data: icon.data })
+      : null;
+    this.db
+      .update(linkMeta)
+      .set({
+        status: 'ok',
+        error,
+        finalUrl: url,
+        title: titleFromUrl(url) ?? null,
+        description: null,
+        siteName: new URL(url).hostname.replace(/^www\./, ''),
+        ogType: null,
+        contentType: null,
+        imageFileId: null,
+        faviconFileId: favicon?.id ?? null,
+        jsonLd: null,
+        fetchedAt: new Date(),
+      })
+      .where(eq(linkMeta.noteId, noteId))
+      .run();
+    this.store.delete([current.imageFileId, current.faviconFileId]);
+    refreshSearchText(this.db, noteId);
+    this.log.info({ url, error }, 'site blocked the link preview; using a partial preview from the address');
+    return true;
+  }
+
   private async process(noteId: string) {
     const start = this.row(noteId);
     if (!start || start.status !== 'pending') return;
@@ -350,9 +406,10 @@ export class LinkPreviews {
     let result: { md: PageMetadata; finalUrl: string; contentType: string; thumb: Buffer | null; icon: Awaited<ReturnType<typeof makeIcon>> };
     try {
       const page = await this.fetchPageCached(url);
-      if (page.status >= 400) throw new FetchError(`The site answered with HTTP ${page.status}`);
+      if (page.status >= 400) throw new FetchError(`The site answered with HTTP ${page.status}`, false, looksBlocked(page.status, undefined));
       if (page.contentType.includes('html') && looksBlocked(page.status, page.body.toString('utf8', 0, 50_000))) {
-        throw new FetchError(this.flare ? 'The site showed a robot check, also to FlareSolverr' : 'The site showed a robot check instead of the page');
+        const message = this.flare ? 'The site showed a robot check, also to FlareSolverr' : 'The site showed a robot check instead of the page';
+        throw new FetchError(message, false, true);
       }
 
       const isHtml = page.contentType.includes('html') || (!page.contentType && page.body.subarray(0, 512).toString().includes('<'));
@@ -391,10 +448,16 @@ export class LinkPreviews {
       const message = err instanceof FetchError ? err.message : 'Could not load the page';
       if (!(err instanceof FetchError)) this.log.warn({ err, url }, 'link preview error');
       const current = this.row(noteId);
-      if (current?.url === url) {
+      if (current?.url !== url) return;
+      if (current.title || current.description || current.imageFileId || current.jsonLd) {
+        // A refresh failed: keep what an earlier fetch found (status ok with an error, see LinkMetaDto).
+        this.db.update(linkMeta).set({ status: 'ok', error: message }).where(eq(linkMeta.noteId, noteId)).run();
+      } else if (err instanceof FetchError && err.blocked) {
+        if (!(await this.saveFromAddress(noteId, url, message))) return;
+      } else {
         this.db.update(linkMeta).set({ status: 'error', error: message, fetchedAt: new Date() }).where(eq(linkMeta.noteId, noteId)).run();
-        this.onUpdate(noteId);
       }
+      this.onUpdate(noteId);
       return;
     }
 

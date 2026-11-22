@@ -42,7 +42,7 @@ The key is only required when `NODE_ENV=production`, which the Docker image sets
 |---|---|---|
 | `LINK_PREVIEWS` | `true` | Fetch page information (title, description, image, …) for link notes. `false`: the server never contacts linked sites. |
 | `LINK_PREVIEW_ALLOW_LAN` | `false` | Allow previews of private and LAN addresses (`192.168.x.x`, `10.x`, `localhost`, …). Off by default so users can't make the server probe your internal network. Turn it on if you save links to your own self-hosted services. |
-| `FLARESOLVERR_URL` | – | Address of a [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) instance, e.g. `http://192.168.1.10:8191`. Pages that refuse link previews (HTTP 401/403/429/503, a "checking your browser" page, a dropped connection), and shop pages whose price only appears in a browser, are fetched through it. Private addresses are still refused unless `LINK_PREVIEW_ALLOW_LAN` is on. |
+| `FLARESOLVERR_URL` | – | Address of a [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) instance, e.g. `http://192.168.1.10:8191`. Pages that refuse link previews (HTTP 401/403/429/503, a "checking your browser" page, a dropped connection), and shop pages whose price only appears in a browser, are fetched through it. It does not get past every bot protection: some shops (e.g. Walmart, Best Buy) block it too, and their links get a partial preview built from the address. Private addresses are still refused unless `LINK_PREVIEW_ALLOW_LAN` is on. |
 
 ## Sign-in providers
 
