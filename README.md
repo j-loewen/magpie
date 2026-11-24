@@ -9,6 +9,8 @@
 
 Text, Markdown, code, checklists, mind maps and links with rich previews, all in one folder tree. Magpie runs as a single Docker container, keeps everything in one encrypted SQLite file, and needs nothing else.
 
+![Magpie's home view: a folder tree on the left and note cards of different types (a link with preview, mind map, code, Markdown, text and a checklist)](docs/images/screenshots/home.webp)
+
 > [!NOTE]
 > **Magpie is built with AI.** Almost all of its code, tests and documentation were written by an AI coding assistant ([Claude Code](https://claude.com/claude-code)), directed by a human maintainer. Nothing here has been reviewed or audited by an independent professional, including the encryption and sign-in. If that matters to you, read [how Magpie is made](docs/how-it-is-made.md) before you use it.
 
@@ -24,6 +26,27 @@ Text, Markdown, code, checklists, mind maps and links with rich previews, all in
 - 🔍 **Full-text search**, trash with restore, import (browser bookmarks, Markdown, OPML, …) and export
 - 🔑 **Sign in** with a password, GitHub or any OpenID Connect provider
 - 📱 **Installable app** (PWA) for desktop and phone, with light and dark themes
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="63%">
+      <img src="docs/images/screenshots/link-previews-dark.webp" alt="A reading list folder in dark mode with link previews for Wikipedia articles and GitHub repositories">
+      <br><sub>Link previews with images and details, in dark mode</sub>
+    </td>
+    <td width="37%" rowspan="2" valign="top">
+      <img src="docs/images/screenshots/phone.webp" alt="The home view on a phone">
+      <br><sub>On a phone</sub>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <img src="docs/images/screenshots/mind-map-dark.webp" alt="A mind map note open in dark mode">
+      <br><sub>Mind map</sub>
+    </td>
+  </tr>
+</table>
 
 ## Quick start
 
